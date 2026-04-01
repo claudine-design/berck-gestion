@@ -145,14 +145,6 @@ body{background:var(--bg);color:var(--text);display:flex;flex-direction:column}
       <div class="lieux-grid" id="r-lieux-grid"></div>
     </div>
 
-    <div id="r-apparts" style="display:none">
-      <div class="ph">
-        <button class="back-btn" onclick="rShowHome()">‹</button>
-        <div><div class="ph-title" id="r-apparts-title"></div></div>
-      </div>
-      <div class="apparts-list" id="r-apparts-list"></div>
-    </div>
-
     <div id="r-articles" style="display:none">
       <div class="ph">
         <button class="back-btn" id="r-back"></button>
@@ -297,11 +289,10 @@ const CATS = [
 ];
 
 // ===================== STATE =====================
-let manquants = {};       // { "Le 23 - Kitesurf": ["art1","art2"], ... }
+let manquants = {};       // { "Le 23": ["art1","art2"], "Albatros": [...] }
 let checked = new Set();  // articles sélectionnés dans la vue active
-let currentLieu = '';     // clé complète ex: "Le 23 - Kitesurf" ou "Albatros"
+let currentLieu = '';     // clé : nom du lieu (ex: "Le 23", "Albatros")
 let currentLieuId = '';   // id du logement
-let currentHasApparts = false;
 
 let travaux = JSON.parse(localStorage.getItem('travaux') || '[]');
 let currentTLieu = '';
@@ -327,15 +318,10 @@ function switchTab(tab) {
 function renderRLieux() {
   const grid = document.getElementById('r-lieux-grid');
   grid.innerHTML = LIEUX.map(l => {
-    let total = 0;
-    if (l.apparts) {
-      l.apparts.forEach(a => { const k = l.nom + ' - ' + a; if (manquants[k]) total += manquants[k].length; });
-    } else {
-      if (manquants[l.nom]) total = manquants[l.nom].length;
-    }
+    const total = manquants[l.nom] ? manquants[l.nom].length : 0;
     const badge = total > 0
       ? '<div class="lieu-count">' + total + ' manquant' + (total > 1 ? 's' : '') + '</div>'
-      : '<div class="lieu-badge">' + (l.apparts ? l.apparts.length + ' apparts' : 'Direct') + '</div>';
+      : '';
     return '<button class="lieu-btn' + (total > 0 ? ' alerte' : '') + '" data-lid="' + l.id + '">'
       + '<div class="lieu-emoji">' + l.emoji + '</div>'
       + '<div class="lieu-nom">' + l.nom + '</div>'
@@ -349,45 +335,24 @@ function renderRLieux() {
 function clickRLieu(id) {
   const l = LIEUX.find(x => x.id === id);
   currentLieuId = id;
-  currentHasApparts = !!l.apparts;
-  if (l.apparts) {
-    document.getElementById('r-apparts-title').textContent = l.nom;
-    const list = document.getElementById('r-apparts-list');
-    list.innerHTML = l.apparts.map(a => {
-      const k = l.nom + ' - ' + a;
-      const cnt = manquants[k] ? manquants[k].length : 0;
-      return '<button class="appart-btn" data-appart="' + h(a) + '">'
-        + '<span>' + h(a) + '</span>'
-        + (cnt > 0 ? '<span class="appart-cnt">' + cnt + ' ✗</span>' : '<span class="appart-ok">✓ OK</span>')
-        + '</button>';
-    }).join('');
-    list.querySelectorAll('.appart-btn').forEach(btn => {
-      btn.addEventListener('click', () => rOpenArticles(id, btn.dataset.appart));
-    });
-    rShow('apparts');
-  } else {
-    rOpenArticles(id, null);
-  }
+  rOpenArticles(id);
 }
 
 function rShowHome() { rShow('home'); }
 
 function rShow(view) {
   document.getElementById('r-home').style.display    = view === 'home'    ? '' : 'none';
-  document.getElementById('r-apparts').style.display = view === 'apparts' ? '' : 'none';
   document.getElementById('r-articles').style.display= view === 'articles'? '' : 'none';
 }
 
 // ===================== RÉASSORT — ARTICLES =====================
-function rOpenArticles(lieuId, appart) {
+function rOpenArticles(lieuId) {
   const l = LIEUX.find(x => x.id === lieuId);
   currentLieuId = lieuId;
-  currentLieu = appart ? l.nom + ' - ' + appart : l.nom;
+  currentLieu = l.nom;
   document.getElementById('r-art-title').textContent = l.nom;
-  document.getElementById('r-art-sub').textContent   = appart || '';
-  document.getElementById('r-back').onclick = currentHasApparts
-    ? () => rShow('apparts')
-    : rShowHome;
+  document.getElementById('r-art-sub').textContent   = '';
+  document.getElementById('r-back').onclick = rShowHome;
   document.getElementById('r-back').textContent = '‹';
   checked = new Set(manquants[currentLieu] || []);
   renderArticles();
