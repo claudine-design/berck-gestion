@@ -95,18 +95,14 @@ body{background:var(--bg);color:var(--text);display:flex;flex-direction:column}
 .travaux-ta:focus{outline:none;border-color:var(--accent)}
 .travaux-add{width:100%;background:var(--accent);color:white;border:none;border-radius:10px;padding:12px;font-size:15px;font-weight:600;cursor:pointer;margin-top:8px}
 
-/* COURSES */
-.course-input-row{display:flex;gap:8px;padding:12px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg);z-index:5}
-.course-input{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;color:var(--text);font-size:15px;font-family:inherit}
-.course-input:focus{outline:none;border-color:var(--accent)}
-.course-add-btn{background:var(--accent);color:white;border:none;border-radius:10px;padding:12px 16px;font-size:20px;cursor:pointer}
-.course-item{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border);cursor:pointer}
-.course-item:active{background:var(--surface2)}
-.course-check{width:23px;height:23px;border-radius:6px;border:2px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:white;transition:all 0.15s}
-.course-item.fait .course-check{background:var(--green);border-color:var(--green)}
-.course-texte{font-size:15px;flex:1}
-.course-item.fait .course-texte{text-decoration:line-through;color:var(--muted)}
-.course-del{background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;padding:2px 6px}
+/* COURSES (bilan réassort) */
+.courses-total{padding:12px 16px;background:var(--surface);border-bottom:1px solid var(--border);font-size:14px;font-weight:600;display:flex;justify-content:space-between;align-items:center}
+.courses-total .total-count{color:var(--orange);font-size:18px}
+.course-cat{padding:8px 16px;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;background:var(--bg);display:flex;align-items:center;gap:6px;border-bottom:1px solid var(--border)}
+.course-item{display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid var(--border)}
+.course-art{font-size:15px;flex:1;font-weight:500}
+.course-lieux{font-size:12px;color:var(--muted);margin-top:2px}
+.course-qty{background:var(--orange);color:var(--bg);font-size:12px;font-weight:700;min-width:26px;height:26px;border-radius:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .clear-btn{display:block;width:calc(100% - 28px);margin:14px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;color:var(--red);font-size:14px;cursor:pointer;text-align:center}
 
 /* RECAP */
@@ -206,15 +202,10 @@ body{background:var(--bg);color:var(--text);display:flex;flex-direction:column}
     <div id="recap-content"></div>
   </div>
 
-  <!-- ===== COURSES ===== -->
+  <!-- ===== COURSES (bilan réassort) ===== -->
   <div class="page" id="page-courses">
     <div class="page-title">🛒 Courses</div>
-    <div class="course-input-row">
-      <input class="course-input" id="c-input" placeholder="Ajouter un article…" onkeydown="if(event.key==='Enter')addCourse()">
-      <button class="course-add-btn" onclick="addCourse()">+</button>
-    </div>
-    <div id="c-list"></div>
-    <button class="clear-btn" onclick="clearCoursesDone()">Effacer les articles cochés</button>
+    <div id="courses-content"></div>
   </div>
 
   <!-- ===== HISTORIQUE ===== -->
@@ -294,7 +285,6 @@ let currentLieuId = '';   // id du logement
 let travaux = JSON.parse(localStorage.getItem('travaux') || '[]');
 let currentTLieu = '';
 
-let courses = JSON.parse(localStorage.getItem('courses') || '[]');
 let historique = JSON.parse(localStorage.getItem('historique') || '[]');
 
 // ===================== UTILS =====================
@@ -525,52 +515,38 @@ function renderRecap() {
   ).join('');
 }
 
-// ===================== COURSES =====================
-function addCourse() {
-  const input = document.getElementById('c-input');
-  const texte = input.value.trim();
-  if (!texte) return;
-  courses.push({ id: Date.now().toString(), texte, fait: false });
-  localStorage.setItem('courses', JSON.stringify(courses));
-  input.value = '';
-  renderCourses();
-}
-
-function toggleCourse(id) {
-  const c = courses.find(x => x.id === id);
-  if (c) { c.fait = !c.fait; localStorage.setItem('courses', JSON.stringify(courses)); renderCourses(); }
-}
-
-function deleteCourse(id) {
-  courses = courses.filter(x => x.id !== id);
-  localStorage.setItem('courses', JSON.stringify(courses));
-  renderCourses();
-}
-
-function clearCoursesDone() {
-  courses = courses.filter(x => !x.fait);
-  localStorage.setItem('courses', JSON.stringify(courses));
-  renderCourses();
-}
-
+// ===================== COURSES (bilan réassort) =====================
 function renderCourses() {
-  const list = document.getElementById('c-list');
-  if (courses.length === 0) {
-    list.innerHTML = '<div class="empty"><div class="empty-icon">🛒</div><p>Liste vide.</p></div>';
+  const el = document.getElementById('courses-content');
+  // Agréger tous les manquants par article
+  const articleMap = {}; // { article: [lieu1, lieu2, ...] }
+  for (const lieu in manquants) {
+    for (const art of manquants[lieu]) {
+      if (!articleMap[art]) articleMap[art] = [];
+      articleMap[art].push(lieu);
+    }
+  }
+  const totalArticles = Object.keys(articleMap).length;
+  if (totalArticles === 0) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">✅</div><p>Aucun article manquant.<br>Tout est en stock !</p></div>';
     return;
   }
-  list.innerHTML = courses.map(c =>
-    '<div class="course-item' + (c.fait ? ' fait' : '') + '" data-id="' + c.id + '">'
-    + '<div class="course-check">' + (c.fait ? '✓' : '') + '</div>'
-    + '<div class="course-texte">' + h(c.texte) + '</div>'
-    + '<button class="course-del" data-action="del">×</button>'
-    + '</div>'
-  ).join('');
-  list.querySelectorAll('.course-item').forEach(el => {
-    const id = el.dataset.id;
-    el.addEventListener('click', () => toggleCourse(id));
-    el.querySelector('[data-action="del"]').addEventListener('click', e => { e.stopPropagation(); deleteCourse(id); });
+  // Grouper par catégorie
+  let html = '<div class="courses-total"><span>Articles à acheter</span><span class="total-count">' + totalArticles + '</span></div>';
+  CATS.forEach(cat => {
+    const items = cat.arts.filter(a => articleMap[a]);
+    if (items.length === 0) return;
+    html += '<div class="course-cat">' + cat.emoji + ' ' + cat.nom + '</div>';
+    items.forEach(art => {
+      const lieux = articleMap[art];
+      html += '<div class="course-item">'
+        + '<div style="flex:1"><div class="course-art">' + h(art) + '</div>'
+        + '<div class="course-lieux">' + lieux.map(l => h(l)).join(', ') + '</div></div>'
+        + '<div class="course-qty">' + lieux.length + '</div>'
+        + '</div>';
+    });
   });
+  el.innerHTML = html;
 }
 
 // ===================== HISTORIQUE =====================
