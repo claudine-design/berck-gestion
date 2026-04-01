@@ -141,7 +141,6 @@ body{background:var(--bg);color:var(--text);display:flex;flex-direction:column}
 
     <div id="r-home">
       <div class="page-title">🧹 Réassort</div>
-      <div class="load-banner" id="r-load">Chargement des données…</div>
       <div class="lieux-grid" id="r-lieux-grid"></div>
     </div>
 
@@ -246,8 +245,6 @@ body{background:var(--bg);color:var(--text);display:flex;flex-direction:column}
 </nav>
 
 <script>
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbxHRtzFd2QSyEyx_LL43eOTCxgX75zcGQOSLIt69NLKjZCA9n1lWO--VsUPx3IEXclD9w/exec';
-
 const LIEUX = [
   { id: 'le23',      nom: 'Le 23',      emoji: '🏠', apparts: ['Kitesurf','Hamac','Paddle','Surf','Famille','Communs'] },
   { id: 'le25',      nom: 'Le 25',      emoji: '🛁', apparts: ['Balnéo','Spa','Communs'] },
@@ -289,7 +286,7 @@ const CATS = [
 ];
 
 // ===================== STATE =====================
-let manquants = {};       // { "Le 23": ["art1","art2"], "Albatros": [...] }
+let manquants = JSON.parse(localStorage.getItem('manquants') || '{}');
 let checked = new Set();  // articles sélectionnés dans la vue active
 let currentLieu = '';     // clé : nom du lieu (ex: "Le 23", "Albatros")
 let currentLieuId = '';   // id du logement
@@ -383,32 +380,16 @@ function toggleArt(art) {
   renderArticles();
 }
 
-async function saveManquants() {
-  const btn = document.getElementById('r-save');
-  btn.disabled = true;
-  rShowStatus('Sauvegarde en cours…', 'loading');
+function saveManquants() {
   const arts = Array.from(checked);
-  try {
-    const url = GAS_URL + '?action=setManquants'
-      + '&lieu=' + encodeURIComponent(currentLieu)
-      + '&articles=' + encodeURIComponent(JSON.stringify(arts));
-    const res = await fetch(url);
-    const json = await res.json();
-    if (json.success) {
-      manquants[currentLieu] = arts;  // merge, ne pas écraser tout manquants
-      renderRLieux();
-      historique.unshift({ lieu: currentLieu, articles: arts, date: new Date().toLocaleString('fr-FR') });
-      if (historique.length > 200) historique.length = 200;
-      localStorage.setItem('historique', JSON.stringify(historique));
-      rShowStatus('Sauvegardé ✓', 'ok');
-      setTimeout(rHideStatus, 3000);
-    } else {
-      rShowStatus('Erreur serveur', 'err');
-    }
-  } catch(e) {
-    rShowStatus('Hors ligne — non sauvegardé', 'err');
-  }
-  btn.disabled = false;
+  manquants[currentLieu] = arts;
+  localStorage.setItem('manquants', JSON.stringify(manquants));
+  renderRLieux();
+  historique.unshift({ lieu: currentLieu, articles: arts, date: new Date().toLocaleString('fr-FR') });
+  if (historique.length > 200) historique.length = 200;
+  localStorage.setItem('historique', JSON.stringify(historique));
+  rShowStatus('Sauvegardé ✓', 'ok');
+  setTimeout(rHideStatus, 3000);
 }
 
 function rShowStatus(msg, type) {
@@ -608,32 +589,6 @@ function renderHisto() {
   ).join('');
 }
 
-// ===================== CHARGEMENT GAS =====================
-async function loadManquants() {
-  const banner = document.getElementById('r-load');
-  banner.style.display = 'block';
-  try {
-    const res = await fetch(GAS_URL + '?action=getManquants');
-    const json = await res.json();
-    const newData = {};
-    for (const row of json.data) {
-      const lieu = row[0], art = row[1];
-      if (lieu && art && typeof lieu === 'string' && typeof art === 'string') {
-        if (!newData[lieu]) newData[lieu] = [];
-        newData[lieu].push(art);
-      }
-    }
-    // Fusion : ne jamais écraser manquants={} en entier
-    for (const lieu in newData) {
-      manquants[lieu] = newData[lieu];
-    }
-  } catch(e) {
-    // Hors ligne : on continue avec l'état local
-  }
-  banner.style.display = 'none';
-  renderRLieux();
-}
-
 // ===================== INIT =====================
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
@@ -642,7 +597,6 @@ if ('serviceWorker' in navigator) {
 renderRLieux();
 renderTLieux();
 renderCourses();
-loadManquants();
 </script>
 </body>
 </html>
